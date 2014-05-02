@@ -1,8 +1,13 @@
 #TODO:
-# - mediaquery inside of a mediaquery
+# - mediaquery inside of a mediaquery - done partically (only for one tree level deep)
 # - images formating pattern setting
-# - formatting is doen only for output sass_string, but not for sass_obj
-# - false params may result in nil uptput - investigate and fix
+# - add convertor: all #_colors_ to rgb
+# - MAJOR: formatting is done only for output sass_string, but not for sass_obj. Move formatting options applyment to object creation
+# - write tests
+# - had issue with [] brackets - test
+# - had issue with asset-url asigning - test -             background: asset-url('#{$brand}offersButton_on.png',image',image) 100% 50% no-repeat;
+#                                                          background: asset-url('#{$brand}//offersButton_on.png) 100% 50% no-repeat;
+# - issue with assigning same roles one after onother
 
 class Sassificator
   attr_accessor :colors_to_vars
@@ -12,6 +17,7 @@ class Sassificator
   # @param [Boolean] colors_to_vars              true : sets all color to sass variables to the top of output string
   # @param [Boolean] fromat_image_declarations   true : formats images declarations to asset-url (for now at least - TODO: will be unified for any format)
   # @param [Boolean] download_images             true : downloads images to specified @output_path
+  # @param [String] image_assets_path            Image asstes path in application
   # @param [String] output_path                  Output path must be specified if download_images is set to true
   #
   def initialize( param = {})
@@ -19,7 +25,9 @@ class Sassificator
     @colors_to_vars =  (param[:colors_to_vars] != false) != false
     @fromat_image_declarations = (param[:fromat_image_declarations] != false) != false
     @download_images =  (param[:download_images] != false) != false
-    @output_path = param[:output_path] ? param[:output_path] : "#{ENV['HOME']}/Desktop/footer_output/"
+
+    @image_assets_path = param[:image_assets_path] ? param[:image_assets_path] : ''
+    @output_path = param[:output_path] ? param[:output_path] : "#{ENV['HOME']}/Desktop/sassificator_output/"
   end
 
   ##
@@ -55,12 +63,17 @@ class Sassificator
     line.gsub(/\n/,'').gsub(/\t/,'').gsub(/\s+(?=\})/,'').gsub(/(?<=\{)\s+/,'')
   end
 
+  def prepare_input_css(input_css)
+    ## 1. reduses double :: pseudo selectors to :
+    ## 2. removes empty rules
+    input_css.gsub(/::/,':').gsub(/^.+{[\s\t\n]{0,}}/,'')  
+  end
+
   def css_to_hash (input_css)
-    input_css = input_css.gsub(/::/,':')
+    input_css = prepare_input_css(input_css)
     selectors_arr = remove_white_spaces_and_new_lines(input_css).gsub(/@media/,"\n@media").gsub(/(?<={{1}).+}(?=[\s\t\n]{0,}}{1})/,'').gsub(/(?<={{1}).+}(?=[\s\t\n]{0,}}{1})/,'').scan(/[^{^}]+(?=\{)/).map {|line| line.sub(/^\s+/,'').sub(/\s+$/,'')}
     rules_arr = remove_white_spaces_and_new_lines(input_css).gsub(/@media/,"\n@media").scan(/(((?<={{1}).+}(?=[\s\t\n]{0,}}{1})|(?<=\{)[^}]+\}{0,}[\\t\\n\s]{0,}(?=\}))|((?<=\{)[^}]+\}{0,}[\\t\\n\s]{0,}(?=\}))|(?<={{1}).+}(?=[\s\t\n]{0,}}{1}))/).map {|item| item.compact.uniq.join} #super-mega reg-exp that scans for normal rules as well as inlined media-query rule + make a single_string_items out of matched array groups
     return_hash = {}
-
     selectors_arr.each_with_index do |selector, index|
       unless return_hash[selector]
         return_hash[selector] = rules_arr[index.to_i]
@@ -91,7 +104,6 @@ class Sassificator
       #TODO : optimize this
       unless sub_pat.empty?
         unless selector.match(/,/)
-
           match = sub_pat
           selector = selector.sub( Regexp.new('^'+match) ,match+' &')
         end
@@ -102,7 +114,7 @@ class Sassificator
           node = CssNode.new
           childrens_stack[match] = node
         end
-        node.uninitialized[selector.sub( Regexp.new('^'+match+' ') ,'')] =  rule
+        node.uninitialized[selector.sub( Regexp.new('^'+match.sub( /\[/ ,'\[').sub(/\]/, '\]')+' ') ,'')] =  rule
         node.parent = parent_node
       else
         if node = childrens_stack[selector]
@@ -151,8 +163,8 @@ class Sassificator
   end
 
   def format_sass (sassed_str)
-    formated_sass_with_images = format_images sassed_str if @fromat_image_declarations
-    formated_sass_with_color = format_color formated_sass_with_images if @colors_to_vars
+    formated_sass_with_images = @fromat_image_declarations ? format_images(sassed_str) : sassed_str
+    formated_sass_with_color = @colors_to_vars ? format_color(formated_sass_with_images) : sassed_str
 
     formated_sass_with_color
   end
@@ -163,9 +175,9 @@ class Sassificator
 
     formated_rule = sassed_str
     sassed_str.scan(/(url\((((http[s]{0,1}:\/\/)([a-z0-9].+\.[a-z]+).+)(\/.+)))\)/).each do |match|
-
-      formated_rule = formated_rule.sub(Regexp.new(match[0].gsub(/\(/,'\(').gsub(match[5],'')),'asset-url(\'#{$brand}')
-      .sub( Regexp.new(match[5]),match[5]+'\',image')
+      #TODO: optimize this - move mathched to variables for clarification of match
+      formated_rule = formated_rule.sub(Regexp.new(match[0].gsub(/\(/,'\(').gsub(match[5],'')),'asset-url(\''+@image_assets_path)
+      .sub( Regexp.new(match[5]),match[5].sub(/\//,'')+'\'')
 
       Net::HTTP.start(match[4]) do |http|
         resp = http.get(match[1])
@@ -190,16 +202,16 @@ class Sassificator
     #TODO: resolve the match for colors in format #sdsd
     formated_rule = sassed_str
     color_hash = {}
-    sassed_str.scan(/rgba\([0-9\,\s\.]+\)|rgb\([0-9\,\s\.]+\)/).each do|m|
+    sassed_str.scan(/rgba\([0-9\,\s\.]+\)|rgb\([0-9\,\s\.]+\)|#[0-9A-Za-z]+(?=;)/).each do|m|
 
       unless color_hash[m]
-        color_hash[m] = '$brand_color_'+color_hash.size.to_s
+        color_hash[m] = '$color_'+color_hash.size.to_s
         formated_rule = formated_rule.gsub( Regexp.new(m.gsub(/\(/,'\(').gsub(/\)/,'\)').gsub(/\./,'\.')), color_hash[m] )
       end
     end
 
     color_hash.invert.to_a.reverse_each {|m|
-      formated_rule = m.join(":")+"\n" + formated_rule
+      formated_rule = m.join(":")+";\n" + formated_rule
     }
 
     formated_rule

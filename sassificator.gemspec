@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name        = 'sassificator'
-  s.version     = '0.1.0'
-  s.date        = '2014-05-02'
+  s.version     = '0.1.3'
+  s.date        = '2014-08-09'
   s.summary     = "A tool for parsing Css to Sass"
   s.description = "Converts Css formatted code to Sass. Generates a Sass formatted hierarchy object, as well as properly formatted Sass code text"
   s.authors     = ["Roman Fromrome"]
