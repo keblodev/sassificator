@@ -2,7 +2,6 @@
 # - mediaquery inside of a mediaquery
 # - images formating pattern setting
 # - formatting is doen only for output sass_string, but not for sass_obj
-# - false params may result in nil uptput - investigate and fix
 
 class Sassificator
   attr_accessor :colors_to_vars
@@ -151,8 +150,8 @@ class Sassificator
   end
 
   def format_sass (sassed_str)
-    formated_sass_with_images = format_images sassed_str if @fromat_image_declarations
-    formated_sass_with_color = format_color formated_sass_with_images if @colors_to_vars
+    formated_sass_with_images = @fromat_image_declarations ? format_images(sassed_str) : sassed_str
+    formated_sass_with_color = @colors_to_vars ? format_color(formated_sass_with_images) : sassed_str
 
     formated_sass_with_color
   end
