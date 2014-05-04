@@ -12,9 +12,9 @@ Class params are specified in class's comments
 Features:
 * Returns hierarchy Sass-formated object and Sass-formated string
 * Can alphabethise rules inside output Sass-formated string
-* Can fromat images declarations to format asset-url(ASSETPATH, image) in Sass-formated string
-* Can download images to cpecified deirectory
-   default dir is ENV['HOME']/Desktop/sassificator_output/
+* Can fromat images declarations to format asset-url(image.format, image) in Sass-formated string
+* Can download images to a specified deirectory
+   ( default dir is ENV['HOME']/Desktop/sassificator_output/ )
 * Can move colors declarations in to color variables in Sass-formated string	
 
 
