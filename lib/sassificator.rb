@@ -1,7 +1,8 @@
 #TODO:
 # - mediaquery inside of a mediaquery
 # - images formating pattern setting
-# - formatting is doen only for output sass_string, but not for sass_obj
+# - add convertor: all #_colors_ to rgb
+# - MAJOR: formatting is done only for output sass_string, but not for sass_obj. Move formatting options applyment to object creation
 
 class Sassificator
   attr_accessor :colors_to_vars
@@ -11,6 +12,7 @@ class Sassificator
   # @param [Boolean] colors_to_vars              true : sets all color to sass variables to the top of output string
   # @param [Boolean] fromat_image_declarations   true : formats images declarations to asset-url (for now at least - TODO: will be unified for any format)
   # @param [Boolean] download_images             true : downloads images to specified @output_path
+  # @param [String] image_assets_path            Image asstes path in application
   # @param [String] output_path                  Output path must be specified if download_images is set to true
   #
   def initialize( param = {})
@@ -18,7 +20,8 @@ class Sassificator
     @colors_to_vars =  (param[:colors_to_vars] != false) != false
     @fromat_image_declarations = (param[:fromat_image_declarations] != false) != false
     @download_images =  (param[:download_images] != false) != false
-    @output_path = param[:output_path] ? param[:output_path] : "#{ENV['HOME']}/Desktop/footer_output/"
+    @image_assets_path = param[:image_assets_path] ? param[:image_assets_path] : ''
+    @output_path = param[:output_path] ? param[:output_path] : "#{ENV['HOME']}/Desktop/sassificator_output/"
   end
 
   ##
@@ -162,9 +165,9 @@ class Sassificator
 
     formated_rule = sassed_str
     sassed_str.scan(/(url\((((http[s]{0,1}:\/\/)([a-z0-9].+\.[a-z]+).+)(\/.+)))\)/).each do |match|
-
-      formated_rule = formated_rule.sub(Regexp.new(match[0].gsub(/\(/,'\(').gsub(match[5],'')),'asset-url(\'#{$brand}')
-      .sub( Regexp.new(match[5]),match[5]+'\',image')
+      #TODO: optimize this - move mathched to variables for clarification of match
+      formated_rule = formated_rule.sub(Regexp.new(match[0].gsub(/\(/,'\(').gsub(match[5],'')),'asset-url(\''+@image_assets_path)
+      .sub( Regexp.new(match[5]),match[5].sub(/\//,'')+'\',image')
 
       Net::HTTP.start(match[4]) do |http|
         resp = http.get(match[1])
@@ -186,13 +189,12 @@ class Sassificator
   end
 
   def format_color(sassed_str)
-    #TODO: resolve the match for colors in format #sdsd
     formated_rule = sassed_str
     color_hash = {}
-    sassed_str.scan(/rgba\([0-9\,\s\.]+\)|rgb\([0-9\,\s\.]+\)/).each do|m|
+    sassed_str.scan(/rgba\([0-9\,\s\.]+\)|rgb\([0-9\,\s\.]+\)|#[0-9A-Za-z]+(?=;)/).each do|m|
 
       unless color_hash[m]
-        color_hash[m] = '$brand_color_'+color_hash.size.to_s
+        color_hash[m] = '$color_'+color_hash.size.to_s
         formated_rule = formated_rule.gsub( Regexp.new(m.gsub(/\(/,'\(').gsub(/\)/,'\)').gsub(/\./,'\.')), color_hash[m] )
       end
     end
