@@ -1,3 +1,6 @@
+# Created by: Roman Fromrome 
+# https://github.com/rimaone
+
 #TODO:
 # - mediaquery inside of a mediaquery - done partically (only for one tree level deep)
 # - images formating pattern setting
@@ -174,25 +177,39 @@ class Sassificator
     require 'net/http'
 
     formated_rule = sassed_str
+
+    #TODO - move this to optional feature (file downloading)
+    #TODO: optimise this - connect to global path
+    path = @output_path
+    Dir.mkdir(path) unless Dir.exist?(path)
+    FileUtils.rm_rf(Dir.glob("#{@output_path}/*"))
+
     sassed_str.scan(/(url\((((http[s]{0,1}:\/\/)([a-z0-9].+\.[a-z]+).+)(\/.+)))\)/).each do |match|
       #TODO: optimize this - move mathched to variables for clarification of match
       formated_rule = formated_rule.sub(Regexp.new(match[0].gsub(/\(/,'\(').gsub(match[5],'')),'asset-url(\''+@image_assets_path)
       .sub( Regexp.new(match[5]),match[5].sub(/\//,'')+'\'')
-
+      
+      #TODO - move this to optional feature (file downloading)
       Net::HTTP.start(match[4]) do |http|
-        resp = http.get(match[1])
+        
+        #TODO - test get_url
+        # forms relative url
+        get_url = match[1].sub(Regexp.new("(http:\/\/||https:\/\/){1}#{match[4]}"),'')
+       begin
+         http.read_timeout = 20
+         resp = http.get(get_url)
 
-        #TODO: optimise this - connect to global path
-        path = @output_path
-        Dir.mkdir(path) unless Dir.exist?(path)
-        open(path+match[5], 'wb') do |file|
-          begin
+         open(path+match[5], 'wb') do |file|
+           begin
             file.write(resp.body)
-          ensure
+           ensure
             file.close()
-          end
-        end
-      end
+           end
+         end
+         rescue
+           p "Fail on getting image #{match[1]}"
+         end
+       end
     end
 
     formated_rule
